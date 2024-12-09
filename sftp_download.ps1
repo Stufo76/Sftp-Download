@@ -14,6 +14,19 @@
 
 #>
 
+<#
+	# ----------- SECTION: CREATING CREDENTIAL FILES -----------
+	$username = "your_username"
+	$password = ConvertTo-SecureString "your_password" -AsPlainText -Force
+	$credential = New-Object System.Management.Automation.PSCredential ($username, $password)
+	
+	# Save the SFTP credentials
+	$credential | Export-CliXml -Path "C:\script\sftp_download\sftp_credentials.xml"
+	
+	# Save the network drive credentials
+	$credential | Export-CliXml -Path "C:\script\sftp_download\netdrive_credentials.xml"
+#>
+
 # -------------------- SECTION: PARAMETERS --------------------
 
 # SFTP Configuration - Parameters to connect to the SFTP server
@@ -102,6 +115,7 @@ function Rotate-Logs {
                 Rename-Item -Path $CurrentLogPath -NewName $NewLogPath -Force
                 Compress-Archive -Path $NewLogPath -DestinationPath "$NewLogPath.zip" -Force
                 Remove-Item -Path $NewLogPath -Force
+				Write-Log "Created new log file: $CurrentLogFilePath"
                 Write-Log "Rotated and compressed log file: $NewLogName"
             }
         }
@@ -160,6 +174,19 @@ function Unmount-NetworkDrive {
         Write-Log "Network drive ${DriveLetter}: unmounted successfully"
     } catch {
         Write-Log "Error unmounting network drive ${DriveLetter}: $($_.Exception.Message)" -IsError
+    }
+}
+
+# Check if path exists and log an error if it doesn't - Validates that a path exists
+function Check-Path {
+    param (
+        [string]$Path, # The path to be checked
+        [string]$PathType # Descriptive type of the path for logging purposes
+    )
+    if (!(Test-Path $Path)) {
+        $ErrorMessage = "Error: Required $PathType does not exist: ${Path}"
+        Write-Log $ErrorMessage -IsError
+        throw $ErrorMessage
     }
 }
 
@@ -277,9 +304,6 @@ function Load-Modules {
 # Define today's log file path
 $CurrentLogFilePath = Join-Path $LogDirectory $BaseLogFileName
 
-# Load required PowerShell modules
-Load-Modules
-
 # Rotate old logs
 Rotate-Logs -LogDirectory $LogDirectory -BaseLogFileName $BaseLogFileName -RetentionDays $RetentionDays
 
@@ -292,6 +316,9 @@ if (-not (Test-Path $CurrentLogFilePath)) {
 
 # Start logging
 Write-Log "Starting SFTP download script"
+
+# Load required PowerShell modules
+Load-Modules
 
 try {
     # Check if log directory exists
@@ -341,17 +368,17 @@ try {
     }
     # Unmount network drive
     Unmount-NetworkDrive -DriveLetter $LocalDriveLetter
-    Write-Log "SFTP download script completed"
-
-    # Add a separator to the log for clarity
-    Write-Log -IsSeparatorThick
 
     # Check the final execution status and exit with the appropriate code
     if ($ExecutionStatus -eq $false) {
-        Write-Log "Script encountered errors during execution. Exiting with error code 1."
+        Write-Log "SFTP download script encountered errors during execution. Exiting with error code 1."
+		# Add a separator to the log for clarity
+		Write-Log -IsSeparatorThick
         exit 1
     } else {
-        Write-Log "Script completed successfully. Exiting with code 0."
+        Write-Log "SFTP download script completed successfully. Exiting with code 0."
+		# Add a separator to the log for clarity
+		Write-Log -IsSeparatorThick
         exit 0
     }
 }
